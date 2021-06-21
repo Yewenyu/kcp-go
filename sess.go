@@ -1073,3 +1073,12 @@ func NewConn(raddr string, block BlockCrypt, dataShards, parityShards int, conn 
 	}
 	return NewConn2(udpaddr, block, dataShards, parityShards, conn)
 }
+
+func (conn *UDPSession) GetFD() uintptr {
+
+	if conn, ok := conn.conn.(*net.UDPConn); ok {
+		file, _ := conn.File()
+		return file.Fd()
+	}
+	return 0
+}
