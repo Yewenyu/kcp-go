@@ -13,6 +13,7 @@ import (
 	"hash/crc32"
 	"io"
 	"net"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -341,6 +342,13 @@ func (s *UDPSession) uncork() {
 		s.txqueue = s.txqueue[:0]
 	}
 }
+
+// // Close closes the connection.
+// func (s *UDPSession) Close() error {
+// 	s.mu.Lock()
+// 	defer s.mu.Unlock()
+// 	return s.conn.Close()
+// }
 
 // Close closes the connection.
 func (s *UDPSession) Close() error {
@@ -1052,6 +1060,26 @@ func DialWithOptions(raddr string, block BlockCrypt, dataShards, parityShards in
 	binary.Read(rand.Reader, binary.LittleEndian, &convid)
 	return newUDPSession(convid, dataShards, parityShards, nil, conn, true, udpaddr, block), nil
 }
+func (s *UDPSession) UpdateConn(raddr string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	udpaddr, err := net.ResolveUDPAddr("udp", raddr)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	network := "udp4"
+	if udpaddr.IP.To4() == nil {
+		network = "udp"
+	}
+
+	conn, err := net.ListenUDP(network, nil)
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	s.conn = conn
+
+	return nil
+}
 
 // NewConn3 establishes a session and talks KCP protocol over a packet connection.
 func NewConn3(convid uint32, raddr net.Addr, block BlockCrypt, dataShards, parityShards int, conn net.PacketConn) (*UDPSession, error) {
@@ -1074,11 +1102,11 @@ func NewConn(raddr string, block BlockCrypt, dataShards, parityShards int, conn 
 	return NewConn2(udpaddr, block, dataShards, parityShards, conn)
 }
 
-func (conn *UDPSession) GetFD() uintptr {
+func (conn *UDPSession) GetFD() *os.File {
 
 	if conn, ok := conn.conn.(*net.UDPConn); ok {
 		file, _ := conn.File()
-		return file.Fd()
+		return file
 	}
-	return 0
+	return nil
 }
